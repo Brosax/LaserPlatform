@@ -32,7 +32,6 @@ class PreviewWidget(QtWidgets.QWidget):
 
         self._pixmap: Optional[QtGui.QPixmap] = None
         self._show_crosshair = True
-        self._auto_level = True
         self._zoom_factor = 1.0
         self._pan_offset = QtCore.QPointF(0, 0)
         self._last_mouse_pos: Optional[QtCore.QPoint] = None
@@ -62,11 +61,6 @@ class PreviewWidget(QtWidgets.QWidget):
         self._crosshair_checkbox.setChecked(True)
         self._crosshair_checkbox.toggled.connect(self._on_crosshair_toggled)
         toolbar.addWidget(self._crosshair_checkbox)
-
-        self._auto_level_checkbox = QtWidgets.QCheckBox("Auto Level")
-        self._auto_level_checkbox.setChecked(True)
-        self._auto_level_checkbox.toggled.connect(self._on_auto_level_toggled)
-        toolbar.addWidget(self._auto_level_checkbox)
 
         toolbar.addSpacing(8)
 
@@ -106,9 +100,7 @@ class PreviewWidget(QtWidgets.QWidget):
             return
 
         # Convert to uint8 for display
-        if self._auto_level:
-            display = self._to_uint8_auto_level(frame)
-        elif frame.dtype == np.uint16:
+        if frame.dtype == np.uint16:
             # Mono14: 14-bit data in uint16 container -> shift right by 6
             display = (frame >> 6).astype(np.uint8)
         elif frame.dtype == np.uint8:
@@ -167,27 +159,6 @@ class PreviewWidget(QtWidgets.QWidget):
     def _on_crosshair_toggled(self, checked: bool):
         self._show_crosshair = checked
         self._canvas_widget.update()
-
-    def _on_auto_level_toggled(self, checked: bool):
-        self._auto_level = checked
-
-    @staticmethod
-    def _to_uint8_auto_level(frame: np.ndarray) -> np.ndarray:
-        """Convert frame to uint8 using robust percentile stretch."""
-        if frame.dtype == np.uint8:
-            f32 = frame.astype(np.float32)
-        else:
-            f32 = frame.astype(np.float32, copy=False)
-
-        # Robustly ignore outliers so dim images remain visible.
-        lo = float(np.percentile(f32, 1.0))
-        hi = float(np.percentile(f32, 99.0))
-
-        if hi <= lo:
-            return np.zeros(frame.shape[:2], dtype=np.uint8)
-
-        stretched = np.clip((f32 - lo) * (255.0 / (hi - lo)), 0.0, 255.0)
-        return stretched.astype(np.uint8)
 
     def _fit_to_view(self):
         self._zoom_factor = 1.0

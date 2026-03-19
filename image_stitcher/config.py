@@ -36,9 +36,6 @@ class ScanConfig:
     exposure_time_us: float = 1000.0
     """Camera exposure time in microseconds."""
 
-    auto_exposure: bool = False
-    """Enable camera auto exposure when True."""
-
     # --- Motion parameters ---
     settle_time_s: float = 0.3
     """Time to wait after platform movement before capturing, in seconds."""
@@ -105,7 +102,7 @@ class ScanConfig:
             errors.append(f"X step size must be positive, got {self.step_x_um}")
         if self.step_y_um <= 0:
             errors.append(f"Y step size must be positive, got {self.step_y_um}")
-        if not self.auto_exposure and self.exposure_time_us <= 0:
+        if self.exposure_time_us <= 0:
             errors.append(
                 f"Exposure time must be positive, got {self.exposure_time_us}"
             )

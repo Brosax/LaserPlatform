@@ -502,10 +502,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._camera.open()
 
             config = self._config_widget.get_config()
-            self._camera.configure(
-                exposure_us=config.exposure_time_us,
-                auto_exposure=config.auto_exposure,
-            )
+            self._camera.configure(exposure_us=config.exposure_time_us)
 
             self._update_hardware_status()
 
@@ -705,10 +702,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._stop_live_feed()
 
         # Configure camera exposure mode
-        self._camera.configure(
-            exposure_us=config.exposure_time_us,
-            auto_exposure=config.auto_exposure,
-        )
+        self._camera.configure(exposure_us=config.exposure_time_us)
 
         # Set up coordinator
         self._coordinator = ScanCoordinator()

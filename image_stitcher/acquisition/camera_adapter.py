@@ -186,7 +186,6 @@ class CameraAdapter:
     def configure(
         self,
         exposure_us: float,
-        auto_exposure: bool = False,
         gain: Optional[float] = None,
         pixel_format: str = "Mono14",
     ):
@@ -197,8 +196,6 @@ class CameraAdapter:
         ----------
         exposure_us : float
             Exposure time in microseconds.
-        auto_exposure : bool
-            Whether to enable automatic exposure control.
         gain : float, optional
             Sensor gain. If None, auto-gain is used or the current value is kept.
         pixel_format : str
@@ -224,24 +221,12 @@ class CameraAdapter:
                 f"Unknown pixel format '{pixel_format}', using camera default."
             )
 
-        # Set exposure mode/time
-        if auto_exposure:
-            try:
-                self._camera.get_feature_by_name("ExposureAuto").set("Continuous")
-                logger.info("Auto exposure enabled (Continuous).")
-            except Exception as e:
-                logger.warning(f"Could not enable auto exposure: {e}")
-        else:
-            try:
-                self._camera.get_feature_by_name("ExposureAuto").set("Off")
-            except Exception as e:
-                logger.debug(f"Could not set ExposureAuto to Off: {e}")
-
-            try:
-                self._camera.get_feature_by_name("ExposureTime").set(exposure_us)
-                logger.info(f"Exposure time set to: {exposure_us} us")
-            except Exception as e:
-                logger.warning(f"Could not set exposure time: {e}")
+        # Set exposure time
+        try:
+            self._camera.get_feature_by_name("ExposureTime").set(exposure_us)
+            logger.info(f"Exposure time set to: {exposure_us} us")
+        except Exception as e:
+            logger.warning(f"Could not set exposure time: {e}")
 
         # Set gain if specified
         if gain is not None:

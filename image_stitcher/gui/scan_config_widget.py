@@ -137,16 +137,11 @@ class ScanConfigWidget(QtWidgets.QWidget):
         cam_group = self._create_group("Camera")
         cam_layout = QtWidgets.QFormLayout()
 
-        self._auto_exposure = QtWidgets.QCheckBox("Auto Exposure")
-        self._auto_exposure.setChecked(self._config.auto_exposure)
-        cam_layout.addRow("Mode:", self._auto_exposure)
-
         self._exposure = QtWidgets.QDoubleSpinBox()
         self._exposure.setRange(1.0, 1e7)
         self._exposure.setDecimals(1)
         self._exposure.setSuffix(" us")
         self._exposure.setValue(self._config.exposure_time_us)
-        self._exposure.setEnabled(not self._config.auto_exposure)
         cam_layout.addRow("Exposure:", self._exposure)
 
         cam_group.setLayout(cam_layout)
@@ -246,7 +241,6 @@ class ScanConfigWidget(QtWidgets.QWidget):
         self._corner2_y.valueChanged.connect(self._on_value_changed)
         self._step_x.valueChanged.connect(self._on_value_changed)
         self._step_y.valueChanged.connect(self._on_value_changed)
-        self._auto_exposure.toggled.connect(self._on_auto_exposure_toggled)
         self._exposure.valueChanged.connect(self._on_value_changed)
         self._settle_time.valueChanged.connect(self._on_value_changed)
         self._velocity.valueChanged.connect(self._on_value_changed)
@@ -254,11 +248,6 @@ class ScanConfigWidget(QtWidgets.QWidget):
 
         # Browse button
         self._browse_btn.clicked.connect(self._on_browse)
-
-    def _on_auto_exposure_toggled(self, enabled: bool):
-        """Toggle manual exposure input and update configuration."""
-        self._exposure.setEnabled(not enabled)
-        self._on_value_changed()
 
     def _on_value_changed(self, *_args):
         """Rebuild ScanConfig from widget values and emit."""
@@ -268,7 +257,6 @@ class ScanConfigWidget(QtWidgets.QWidget):
             step_x_um=self._step_x.value(),
             step_y_um=self._step_y.value(),
             exposure_time_us=self._exposure.value(),
-            auto_exposure=self._auto_exposure.isChecked(),
             settle_time_s=self._settle_time.value(),
             velocity_um_s=self._velocity.value(),
             output_directory=self._output_dir.text(),
