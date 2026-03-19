@@ -99,10 +99,14 @@ class PreviewWidget(QtWidgets.QWidget):
         if frame is None or frame.size == 0:
             return
 
-        # Convert to uint8 for display
+        # Convert to uint8 for display using a fixed linear mapping.
+        # For Mono14 data in uint16 container, map 0..16383 to 0..255,
+        # then apply a fixed display gain so low-signal scenes are visible
+        # without enabling adaptive auto-level behavior.
         if frame.dtype == np.uint16:
-            # Mono14: 14-bit data in uint16 container -> shift right by 6
-            display = (frame >> 6).astype(np.uint8)
+            display_f32 = frame.astype(np.float32) * (255.0 / 16383.0)
+            display_f32 *= 4.0  # fixed display gain
+            display = np.clip(display_f32, 0.0, 255.0).astype(np.uint8)
         elif frame.dtype == np.uint8:
             display = frame
         else:

@@ -221,6 +221,18 @@ class CameraAdapter:
                 f"Unknown pixel format '{pixel_format}', using camera default."
             )
 
+        # Force manual camera control path so GUI exposure input always works.
+        # Some cameras keep auto modes enabled from previous sessions.
+        try:
+            self._camera.get_feature_by_name("ExposureAuto").set("Off")
+        except Exception as e:
+            logger.debug(f"Could not set ExposureAuto to Off: {e}")
+
+        try:
+            self._camera.get_feature_by_name("GainAuto").set("Off")
+        except Exception as e:
+            logger.debug(f"Could not set GainAuto to Off: {e}")
+
         # Set exposure time
         try:
             self._camera.get_feature_by_name("ExposureTime").set(exposure_us)
