@@ -32,6 +32,7 @@ class PreviewWidget(QtWidgets.QWidget):
 
         self._pixmap: Optional[QtGui.QPixmap] = None
         self._show_crosshair = True
+        self._auto_level = True
         self._zoom_factor = 1.0
         self._pan_offset = QtCore.QPointF(0, 0)
         self._last_mouse_pos: Optional[QtCore.QPoint] = None
@@ -61,6 +62,11 @@ class PreviewWidget(QtWidgets.QWidget):
         self._crosshair_checkbox.setChecked(True)
         self._crosshair_checkbox.toggled.connect(self._on_crosshair_toggled)
         toolbar.addWidget(self._crosshair_checkbox)
+
+        self._auto_level_checkbox = QtWidgets.QCheckBox("Auto Level")
+        self._auto_level_checkbox.setChecked(True)
+        self._auto_level_checkbox.toggled.connect(self._on_auto_level_toggled)
+        toolbar.addWidget(self._auto_level_checkbox)
 
         toolbar.addSpacing(8)
 
@@ -99,13 +105,13 @@ class PreviewWidget(QtWidgets.QWidget):
         if frame is None or frame.size == 0:
             return
 
-        # Convert to uint8 for display using a fixed linear mapping.
-        # For Mono14 data in uint16 container, map 0..16383 to 0..255,
-        # then apply a fixed display gain so low-signal scenes are visible
-        # without enabling adaptive auto-level behavior.
-        if frame.dtype == np.uint16:
+        # Convert to uint8 for display
+        if self._auto_level:
+            display = self._to_uint8_auto_level(frame)
+        elif frame.dtype == np.uint16:
+            # Fixed linear mapping for Mono14 in uint16 container.
             display_f32 = frame.astype(np.float32) * (255.0 / 16383.0)
-            display_f32 *= 4.0  # fixed display gain
+            display_f32 *= 4.0
             display = np.clip(display_f32, 0.0, 255.0).astype(np.uint8)
         elif frame.dtype == np.uint8:
             display = frame
@@ -163,6 +169,26 @@ class PreviewWidget(QtWidgets.QWidget):
     def _on_crosshair_toggled(self, checked: bool):
         self._show_crosshair = checked
         self._canvas_widget.update()
+
+    def _on_auto_level_toggled(self, checked: bool):
+        self._auto_level = checked
+
+    @staticmethod
+    def _to_uint8_auto_level(frame: np.ndarray) -> np.ndarray:
+        """Convert frame to uint8 using robust percentile stretch."""
+        if frame.dtype == np.uint8:
+            f32 = frame.astype(np.float32)
+        else:
+            f32 = frame.astype(np.float32, copy=False)
+
+        lo = float(np.percentile(f32, 1.0))
+        hi = float(np.percentile(f32, 99.0))
+
+        if hi <= lo:
+            return np.zeros(frame.shape[:2], dtype=np.uint8)
+
+        stretched = np.clip((f32 - lo) * (255.0 / (hi - lo)), 0.0, 255.0)
+        return stretched.astype(np.uint8)
 
     def _fit_to_view(self):
         self._zoom_factor = 1.0
