@@ -36,6 +36,9 @@ class ScanConfig:
     exposure_time_us: float = 1000.0
     """Camera exposure time in microseconds."""
 
+    auto_exposure: bool = False
+    """Use camera's native auto exposure (ExposureAuto=Continuous)."""
+
     # --- Motion parameters ---
     settle_time_s: float = 0.3
     """Time to wait after platform movement before capturing, in seconds."""

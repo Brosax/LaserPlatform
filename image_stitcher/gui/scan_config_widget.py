@@ -144,6 +144,14 @@ class ScanConfigWidget(QtWidgets.QWidget):
         self._exposure.setValue(self._config.exposure_time_us)
         cam_layout.addRow("Exposure:", self._exposure)
 
+        self._auto_exposure = QtWidgets.QCheckBox("Auto Exposure (Recommended)")
+        self._auto_exposure.setToolTip(
+            "Use camera's native auto exposure.\n"
+            "When enabled, the camera automatically adjusts exposure time."
+        )
+        self._auto_exposure.setChecked(self._config.auto_exposure)
+        cam_layout.addRow("", self._auto_exposure)
+
         cam_group.setLayout(cam_layout)
         scroll_layout.addWidget(cam_group)
 
@@ -242,6 +250,7 @@ class ScanConfigWidget(QtWidgets.QWidget):
         self._step_x.valueChanged.connect(self._on_value_changed)
         self._step_y.valueChanged.connect(self._on_value_changed)
         self._exposure.valueChanged.connect(self._on_value_changed)
+        self._auto_exposure.stateChanged.connect(self._on_auto_exposure_changed)
         self._settle_time.valueChanged.connect(self._on_value_changed)
         self._velocity.valueChanged.connect(self._on_value_changed)
         self._output_dir.textChanged.connect(self._on_value_changed)
@@ -257,6 +266,7 @@ class ScanConfigWidget(QtWidgets.QWidget):
             step_x_um=self._step_x.value(),
             step_y_um=self._step_y.value(),
             exposure_time_us=self._exposure.value(),
+            auto_exposure=self._auto_exposure.isChecked(),
             settle_time_s=self._settle_time.value(),
             velocity_um_s=self._velocity.value(),
             output_directory=self._output_dir.text(),
@@ -265,6 +275,13 @@ class ScanConfigWidget(QtWidgets.QWidget):
         self._update_grid_info()
         self._validate()
         self.config_changed.emit(self._config)
+
+    def _on_auto_exposure_changed(self, state: int):
+        """Handle auto exposure checkbox toggle."""
+        checked = state == QtCore.Qt.CheckState.Checked.value
+        # Disable manual exposure input when auto exposure is enabled
+        self._exposure.setEnabled(not checked)
+        self._on_value_changed()
 
     def _on_browse(self):
         """Open directory picker for output directory."""

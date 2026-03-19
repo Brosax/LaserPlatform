@@ -188,6 +188,7 @@ class CameraAdapter:
         exposure_us: float,
         gain: Optional[float] = None,
         pixel_format: str = "Mono14",
+        auto_exposure: bool = False,
     ):
         """
         Configure the camera for single-frame capture.
@@ -195,11 +196,14 @@ class CameraAdapter:
         Parameters
         ----------
         exposure_us : float
-            Exposure time in microseconds.
+            Exposure time in microseconds (used only if auto_exposure=False).
         gain : float, optional
             Sensor gain. If None, auto-gain is used or the current value is kept.
         pixel_format : str
             Pixel format string (default "Mono14" for NIR imaging).
+        auto_exposure : bool
+            If True, use camera's native ExposureAuto=Continuous mode.
+            If False, use manual exposure with the specified exposure_us.
         """
         import vmbpy
 
@@ -221,24 +225,32 @@ class CameraAdapter:
                 f"Unknown pixel format '{pixel_format}', using camera default."
             )
 
-        # Force manual camera control path so GUI exposure input always works.
-        # Some cameras keep auto modes enabled from previous sessions.
-        try:
-            self._camera.get_feature_by_name("ExposureAuto").set("Off")
-        except Exception as e:
-            logger.debug(f"Could not set ExposureAuto to Off: {e}")
+        # Configure exposure mode
+        if auto_exposure:
+            # Use camera's native auto exposure
+            try:
+                self._camera.get_feature_by_name("ExposureAuto").set("Continuous")
+                logger.info("ExposureAuto set to Continuous")
+            except Exception as e:
+                logger.warning(f"Could not enable ExposureAuto: {e}")
+        else:
+            # Manual exposure mode
+            try:
+                self._camera.get_feature_by_name("ExposureAuto").set("Off")
+            except Exception as e:
+                logger.debug(f"Could not set ExposureAuto to Off: {e}")
 
+            try:
+                self._camera.get_feature_by_name("ExposureTime").set(exposure_us)
+                logger.info(f"Exposure time set to: {exposure_us} us")
+            except Exception as e:
+                logger.warning(f"Could not set exposure time: {e}")
+
+        # Disable auto gain for consistent results
         try:
             self._camera.get_feature_by_name("GainAuto").set("Off")
         except Exception as e:
             logger.debug(f"Could not set GainAuto to Off: {e}")
-
-        # Set exposure time
-        try:
-            self._camera.get_feature_by_name("ExposureTime").set(exposure_us)
-            logger.info(f"Exposure time set to: {exposure_us} us")
-        except Exception as e:
-            logger.warning(f"Could not set exposure time: {e}")
 
         # Set gain if specified
         if gain is not None:

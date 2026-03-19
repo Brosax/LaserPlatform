@@ -419,8 +419,15 @@ class MainWindow(QtWidgets.QMainWindow):
     # ------------------------------------------------------------------ #
 
     def _on_config_changed(self, config: ScanConfig):
-        """Handle configuration changes (no-op now that grid overlay is removed)."""
-        pass
+        """Re-apply camera settings when config changes during live preview."""
+        if self._camera is not None and self._camera.is_open:
+            try:
+                self._camera.configure(
+                    exposure_us=config.exposure_time_us,
+                    auto_exposure=config.auto_exposure,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to apply camera config: {e}")
 
     def _on_mark_corner(self, corner_index: int):
         """Read the current XY position and set it as a corner."""
@@ -502,7 +509,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self._camera.open()
 
             config = self._config_widget.get_config()
-            self._camera.configure(exposure_us=config.exposure_time_us)
+            self._camera.configure(
+                exposure_us=config.exposure_time_us,
+                auto_exposure=config.auto_exposure,
+            )
 
             self._update_hardware_status()
 
@@ -702,7 +712,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._stop_live_feed()
 
         # Configure camera exposure mode
-        self._camera.configure(exposure_us=config.exposure_time_us)
+        self._camera.configure(
+            exposure_us=config.exposure_time_us,
+            auto_exposure=config.auto_exposure,
+        )
 
         # Set up coordinator
         self._coordinator = ScanCoordinator()
