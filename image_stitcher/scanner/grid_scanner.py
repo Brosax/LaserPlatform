@@ -1,8 +1,8 @@
 """
 Grid scanner - computes scan positions for a serpentine (boustrophedon) path.
 
-Given two corner points and overlap parameters, calculates the optimal
-grid of positions for the XYZ platform to visit during image acquisition.
+Given two corner points and step sizes, calculates the grid of positions
+for the XY platform to visit during image acquisition.
 """
 
 import logging
@@ -31,7 +31,7 @@ class GridScanner:
         Parameters
         ----------
         config : ScanConfig
-            Scan configuration containing corner points, overlap, and image parameters.
+            Scan configuration containing corner points and step sizes.
         """
         self._config = config
         self._positions: List[Tuple[int, int, float, float]] = []
@@ -57,9 +57,8 @@ class GridScanner:
 
         logger.info(
             f"Grid computed: {cfg.num_rows} rows x {cfg.num_cols} cols = "
-            f"{cfg.total_tiles} tiles, "
-            f"step=({cfg.step_x_um:.1f}, {cfg.step_y_um:.1f}) um, "
-            f"overlap={cfg.overlap_ratio * 100:.0f}%"
+            f"{len(self._positions)} positions, "
+            f"step=({cfg.step_x_um:.1f}, {cfg.step_y_um:.1f}) um"
         )
 
     @property
@@ -135,7 +134,7 @@ class GridScanner:
         This is a rough estimate based on:
         - Travel time between positions (using configured velocity)
         - Settle time at each position
-        - Exposure time at each position
+        - A fixed user confirmation time estimate (5s per tile)
 
         Returns
         -------
@@ -143,9 +142,10 @@ class GridScanner:
             Estimated scan time in seconds.
         """
         cfg = self._config
+        user_confirm_time = 5.0  # estimated seconds per tile for user confirmation
 
         if len(self._positions) < 2:
-            return cfg.settle_time_s + cfg.exposure_time_us / 1e6
+            return cfg.settle_time_s + user_confirm_time
 
         total_time = 0.0
         for i in range(1, len(self._positions)):
@@ -161,10 +161,10 @@ class GridScanner:
             else:
                 travel_time = 0.0
 
-            # Add settle + exposure time
-            total_time += travel_time + cfg.settle_time_s + cfg.exposure_time_us / 1e6
+            # Add settle + user confirmation time
+            total_time += travel_time + cfg.settle_time_s + user_confirm_time
 
-        # Add first position settle + exposure
-        total_time += cfg.settle_time_s + cfg.exposure_time_us / 1e6
+        # Add first position settle + user confirmation
+        total_time += cfg.settle_time_s + user_confirm_time
 
         return total_time

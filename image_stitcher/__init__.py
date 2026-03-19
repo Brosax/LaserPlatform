@@ -1,9 +1,9 @@
 """
-Image Stitcher - XYZ platform grid scanning and image stitching tool.
+S-Pattern Scanner - XY platform grid scanning tool.
 
-Captures multiple images by moving an XYZ platform in a grid pattern,
-then stitches them together into a single composite image using feature
-matching and blending.
+Moves an XY platform in an S-pattern (serpentine) grid and captures
+screenshots at each position with user confirmation. Images are saved
+as both PNG (8-bit) and TIFF (16-bit).
 """
 
 __version__ = "1.0.0"

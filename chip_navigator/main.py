@@ -1,16 +1,16 @@
 """
-S-Pattern Scanner - Application entry point.
+Chip Navigator — Application entry point.
 
-Launches the standalone PySide6 GUI for S-pattern grid scanning with
-user-confirmed image capture.
+Launches the PySide6 GUI for panorama-based chip navigation with
+affine calibration mapping.
 
 Usage
 -----
-Standalone (connect hardware from GUI menus):
-    python -m image_stitcher
+Standalone:
+    python -m chip_navigator
 
-With pre-configured hardware (from Python):
-    from image_stitcher.main import launch
+With pre-configured hardware:
+    from chip_navigator.main import launch
     from image_stitcher.acquisition.smc100_axis import SMC100Axis
     from image_stitcher.acquisition.xy_table import XYTable
 
@@ -19,62 +19,49 @@ With pre-configured hardware (from Python):
     xy = XYTable(x, y)
 
     launch(xy_table=xy)
-
-Hardware can also be connected at runtime via the Hardware menu:
-  - Hardware > Connect XY Table...  (opens dialog to pick COM port / addresses)
-  - Hardware > Connect Camera       (auto-detects Allied Vision camera,
-                                      starts live preview immediately)
 """
 
 import logging
 import sys
 from typing import Optional
 
-from PySide6 import QtWidgets
+from PySide6 import QtGui, QtWidgets
 
-from .gui.main_window import MainWindow
-from .acquisition.camera_adapter import CameraAdapter
-from .acquisition.xy_table import XYTable
+from .gui.chip_navigator_window import ChipNavigatorWindow
 
 
 def launch(
-    xy_table: Optional[XYTable] = None,
-    camera: Optional[CameraAdapter] = None,
+    xy_table=None,
+    camera=None,
     log_level: int = logging.INFO,
 ):
     """
-    Launch the S-Pattern Scanner application.
+    Launch the Chip Navigator application.
 
     Parameters
     ----------
     xy_table : XYTable, optional
-        Pre-configured XY table instance. If None, the user can
-        connect from the Hardware menu.
+        Pre-configured XY table. If None, connect from Hardware menu.
     camera : CameraAdapter, optional
-        Pre-configured and opened camera adapter. If None, the user
-        can connect the camera from the Hardware menu.
+        Pre-configured camera. If None, connect from Hardware menu.
     log_level : int
         Logging level (default: INFO).
     """
-    # Configure logging
     logging.basicConfig(
         level=log_level,
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
         datefmt="%H:%M:%S",
     )
 
-    # Create or reuse QApplication
     app = QtWidgets.QApplication.instance()
     standalone = app is None
     if standalone:
         app = QtWidgets.QApplication(sys.argv)
 
-    # Apply dark theme style
     app.setStyle("Fusion")
     _apply_dark_palette(app)
 
-    # Create and show main window
-    window = MainWindow(xy_table=xy_table, camera=camera)
+    window = ChipNavigatorWindow(xy_table=xy_table, camera=camera)
     window.show()
 
     if standalone:
@@ -83,13 +70,10 @@ def launch(
         return window
 
 
-def _apply_dark_palette(app: QtWidgets.QApplication):
+def _apply_dark_palette(app):
     """Apply a dark color palette to the application."""
-    from PySide6 import QtGui
-
     palette = QtGui.QPalette()
 
-    # Base colors
     dark = QtGui.QColor(45, 45, 45)
     darker = QtGui.QColor(30, 30, 30)
     text = QtGui.QColor(210, 210, 210)
@@ -110,7 +94,6 @@ def _apply_dark_palette(app: QtWidgets.QApplication):
     palette.setColor(QtGui.QPalette.ColorRole.Highlight, highlight)
     palette.setColor(QtGui.QPalette.ColorRole.HighlightedText, QtGui.QColor(0, 0, 0))
 
-    # Disabled
     palette.setColor(
         QtGui.QPalette.ColorGroup.Disabled,
         QtGui.QPalette.ColorRole.WindowText,

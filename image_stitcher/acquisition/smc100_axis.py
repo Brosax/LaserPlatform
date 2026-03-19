@@ -98,6 +98,8 @@ class SMC100Axis:
         self._address_str = str(address)
         self._timeout = timeout
 
+        created_serial = False
+
         # --- Shared serial port ---
         if (
             port not in SMC100Axis._shared_serials
@@ -110,6 +112,7 @@ class SMC100Axis:
             )
             SMC100Axis._shared_serials[port] = ser
             SMC100Axis._ref_counts[port] = 0
+            created_serial = True
             logger.info(f"Opened serial port {port} (57600, 8N1, XON/XOFF)")
 
         self._serial = SMC100Axis._shared_serials[port]
@@ -124,13 +127,26 @@ class SMC100Axis:
         self._retry_count: int = 0
 
         # Query initial state
-        self._update_status()
-        self._read_software_limits()
-        logger.info(
-            f"SMC100 addr={address} on {port}: state={self._state}, "
-            f"pos={self._position_um:.1f} um, "
-            f"limits=[{self._neg_limit_um:.0f}, {self._pos_limit_um:.0f}] um"
-        )
+        try:
+            self._update_status()
+            self._read_software_limits()
+            logger.info(
+                f"SMC100 addr={address} on {port}: state={self._state}, "
+                f"pos={self._position_um:.1f} um, "
+                f"limits=[{self._neg_limit_um:.0f}, {self._pos_limit_um:.0f}] um"
+            )
+        except Exception:
+            # Roll back this axis registration so failed connects do not
+            # leave stale serial handles or ref counts.
+            SMC100Axis._ref_counts[port] -= 1
+            if SMC100Axis._ref_counts[port] <= 0 and created_serial:
+                try:
+                    self._serial.close()
+                finally:
+                    del SMC100Axis._shared_serials[port]
+                    del SMC100Axis._ref_counts[port]
+                    logger.info(f"Closed serial port {port} after init failure")
+            raise
 
     # ------------------------------------------------------------------ #
     #  Properties

@@ -23,7 +23,7 @@ class ProgressWidget(QtWidgets.QWidget):
     - Current tile position (row, col)
     - Elapsed time
     - Estimated time remaining (ETA)
-    - Platform position (X, Y, Z)
+    - Platform position (X, Y)
     - Start / Pause / Resume / Abort buttons
 
     Signals
@@ -84,7 +84,7 @@ class ProgressWidget(QtWidgets.QWidget):
 
         info_layout.addStretch()
 
-        self._position_label = QtWidgets.QLabel("Pos: - , - , -")
+        self._position_label = QtWidgets.QLabel("Pos: - , -")
         info_layout.addWidget(self._position_label)
 
         info_layout.addSpacing(16)
@@ -207,9 +207,9 @@ class ProgressWidget(QtWidgets.QWidget):
         if status:
             self._status_label.setText(status)
 
-    def update_position(self, x_um: float, y_um: float, z_um: float):
+    def update_position(self, x_um: float, y_um: float):
         """Update the platform position display."""
-        self._position_label.setText(f"Pos: {x_um:.0f}, {y_um:.0f}, {z_um:.0f} um")
+        self._position_label.setText(f"Pos: {x_um:.0f}, {y_um:.0f} um")
 
     def update_eta(self, eta_seconds: float):
         """Update the ETA display."""
@@ -221,7 +221,7 @@ class ProgressWidget(QtWidgets.QWidget):
         self._tile_label.setText("0 / 0")
         self._elapsed_label.setText("Elapsed: --:--")
         self._eta_label.setText("ETA: --:--")
-        self._position_label.setText("Pos: - , - , -")
+        self._position_label.setText("Pos: - , -")
         self._scan_start_time = None
 
     def _update_elapsed(self):

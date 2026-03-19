@@ -1,9 +1,9 @@
 """
-Real-time stitching preview widget.
+Live camera preview widget.
 
-Displays either a **live camera feed** (continuously-updating single frame)
-or the **composite image** as it is being built, with an optional grid
-overlay showing tile boundaries and current scan position.
+Displays a real-time camera feed with optional crosshair overlay.
+Used during S-pattern scanning to let the user verify image clarity
+before confirming capture at each position.
 """
 
 import logging
@@ -17,32 +17,26 @@ logger = logging.getLogger(__name__)
 
 class PreviewWidget(QtWidgets.QWidget):
     """
-    Widget that displays either a live camera feed or a stitching composite.
+    Widget that displays a live camera feed.
 
     Features:
-    - Two modes: **live** (real-time camera) and **composite** (scan result)
+    - Real-time camera frame display
     - Auto-scaling to fit the widget while preserving aspect ratio
-    - Crosshair overlay in live mode
-    - Optional grid overlay showing tile boundaries (composite mode)
-    - Current position indicator (composite mode)
-    - Mouse-wheel zoom and pan (click-drag)
+    - Crosshair overlay for alignment
+    - Current position info display
+    - Mouse-wheel zoom and pan (middle-click drag)
     """
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
 
         self._pixmap: Optional[QtGui.QPixmap] = None
-        self._grid_info: Optional[dict] = None
-        self._current_tile: Optional[tuple[int, int]] = None
-        self._show_grid = True
         self._show_crosshair = True
         self._zoom_factor = 1.0
         self._pan_offset = QtCore.QPointF(0, 0)
         self._last_mouse_pos: Optional[QtCore.QPoint] = None
         self._is_panning = False
-
-        # View mode: "live" or "composite"
-        self._mode = "live"
+        self._position_text = ""
 
         # Layout
         self._setup_ui()
@@ -62,31 +56,11 @@ class PreviewWidget(QtWidgets.QWidget):
         # Toolbar
         toolbar = QtWidgets.QHBoxLayout()
 
-        # Mode toggle
-        self._mode_combo = QtWidgets.QComboBox()
-        self._mode_combo.addItem("Live", "live")
-        self._mode_combo.addItem("Composite", "composite")
-        self._mode_combo.setCurrentIndex(0)
-        self._mode_combo.currentIndexChanged.connect(self._on_mode_changed)
-        self._mode_combo.setToolTip(
-            "Switch between live camera view and composite preview"
-        )
-        toolbar.addWidget(QtWidgets.QLabel("View:"))
-        toolbar.addWidget(self._mode_combo)
-
-        toolbar.addSpacing(8)
-
-        # Crosshair toggle (live mode only)
+        # Crosshair toggle
         self._crosshair_checkbox = QtWidgets.QCheckBox("Crosshair")
         self._crosshair_checkbox.setChecked(True)
         self._crosshair_checkbox.toggled.connect(self._on_crosshair_toggled)
         toolbar.addWidget(self._crosshair_checkbox)
-
-        # Grid toggle (composite mode only)
-        self._grid_checkbox = QtWidgets.QCheckBox("Show Grid")
-        self._grid_checkbox.setChecked(True)
-        self._grid_checkbox.toggled.connect(self._on_grid_toggled)
-        toolbar.addWidget(self._grid_checkbox)
 
         toolbar.addSpacing(8)
 
@@ -108,45 +82,6 @@ class PreviewWidget(QtWidgets.QWidget):
         # Image display area (we paint directly on this widget)
         self._canvas_widget = _CanvasArea(self)
         layout.addWidget(self._canvas_widget, stretch=1)
-
-        # Initial toolbar state
-        self._update_toolbar_visibility()
-
-    # ------------------------------------------------------------------ #
-    #  Mode management
-    # ------------------------------------------------------------------ #
-
-    def set_mode(self, mode: str):
-        """
-        Switch between 'live' and 'composite' modes.
-
-        Parameters
-        ----------
-        mode : str
-            Either ``'live'`` or ``'composite'``.
-        """
-        if mode not in ("live", "composite"):
-            return
-        self._mode = mode
-        idx = self._mode_combo.findData(mode)
-        if idx >= 0:
-            self._mode_combo.blockSignals(True)
-            self._mode_combo.setCurrentIndex(idx)
-            self._mode_combo.blockSignals(False)
-        self._update_toolbar_visibility()
-        self._canvas_widget.update()
-
-    def _on_mode_changed(self, index: int):
-        """Handle mode combo box change."""
-        self._mode = self._mode_combo.currentData()
-        self._update_toolbar_visibility()
-        self._canvas_widget.update()
-
-    def _update_toolbar_visibility(self):
-        """Show/hide toolbar items based on current mode."""
-        is_live = self._mode == "live"
-        self._crosshair_checkbox.setVisible(is_live)
-        self._grid_checkbox.setVisible(not is_live)
 
     # ------------------------------------------------------------------ #
     #  Live feed
@@ -190,79 +125,22 @@ class PreviewWidget(QtWidgets.QWidget):
         self._info_label.setText(f"Live: {w} x {h} px")
         self._canvas_widget.update()
 
-    # ------------------------------------------------------------------ #
-    #  Composite preview (existing interface)
-    # ------------------------------------------------------------------ #
-
-    def update_preview(self, image: np.ndarray):
+    def set_position_text(self, text: str):
         """
-        Update the preview with a new composite image.
+        Set position text to display as overlay.
 
         Parameters
         ----------
-        image : np.ndarray
-            uint8 grayscale preview image.
+        text : str
+            Position information string, e.g. "Position (1,2) - 1500.0, 2000.0 um"
         """
-        if image is None or image.size == 0:
-            return
-
-        h, w = image.shape[:2]
-
-        # Convert numpy array to QPixmap
-        if image.ndim == 2:
-            qimage = QtGui.QImage(
-                image.data.tobytes(),
-                w,
-                h,
-                w,
-                QtGui.QImage.Format.Format_Grayscale8,
-            )
-        else:
-            qimage = QtGui.QImage(
-                image.data.tobytes(),
-                w,
-                h,
-                w * 3,
-                QtGui.QImage.Format.Format_RGB888,
-            )
-
-        self._pixmap = QtGui.QPixmap.fromImage(qimage)
-        self._info_label.setText(f"{w} x {h} px")
-        self._canvas_widget.update()
-
-    def set_grid_info(self, num_rows: int, num_cols: int):
-        """
-        Set grid dimensions for the overlay.
-
-        Parameters
-        ----------
-        num_rows : int
-            Number of rows in the grid.
-        num_cols : int
-            Number of columns in the grid.
-        """
-        self._grid_info = {"rows": num_rows, "cols": num_cols}
-        self._canvas_widget.update()
-
-    def set_current_tile(self, row: int, col: int):
-        """
-        Highlight the current tile being captured.
-
-        Parameters
-        ----------
-        row : int
-            Current row index.
-        col : int
-            Current column index.
-        """
-        self._current_tile = (row, col)
+        self._position_text = text
         self._canvas_widget.update()
 
     def clear(self):
         """Clear the preview."""
         self._pixmap = None
-        self._grid_info = None
-        self._current_tile = None
+        self._position_text = ""
         self._zoom_factor = 1.0
         self._pan_offset = QtCore.QPointF(0, 0)
         self._info_label.setText("No image")
@@ -277,10 +155,6 @@ class PreviewWidget(QtWidgets.QWidget):
         self._show_crosshair = checked
         self._canvas_widget.update()
 
-    def _on_grid_toggled(self, checked: bool):
-        self._show_grid = checked
-        self._canvas_widget.update()
-
     def _fit_to_view(self):
         self._zoom_factor = 1.0
         self._pan_offset = QtCore.QPointF(0, 0)
@@ -291,13 +165,10 @@ class PreviewWidget(QtWidgets.QWidget):
         """Return current state for painting by _CanvasArea."""
         return {
             "pixmap": self._pixmap,
-            "mode": self._mode,
-            "grid_info": self._grid_info,
-            "current_tile": self._current_tile,
-            "show_grid": self._show_grid,
             "show_crosshair": self._show_crosshair,
             "zoom_factor": self._zoom_factor,
             "pan_offset": self._pan_offset,
+            "position_text": self._position_text,
         }
 
     def handle_wheel(self, event: QtGui.QWheelEvent):
@@ -351,10 +222,7 @@ class _CanvasArea(QtWidgets.QWidget):
             # Draw placeholder
             painter.fillRect(self.rect(), QtGui.QColor(40, 40, 40))
             painter.setPen(QtGui.QColor(120, 120, 120))
-            if params["mode"] == "live":
-                placeholder_text = "No camera feed — connect camera to start live view"
-            else:
-                placeholder_text = "No preview available"
+            placeholder_text = "No camera feed — connect camera to start live view"
             painter.drawText(
                 self.rect(), QtCore.Qt.AlignmentFlag.AlignCenter, placeholder_text
             )
@@ -388,17 +256,13 @@ class _CanvasArea(QtWidgets.QWidget):
         # Draw image
         painter.drawPixmap(target_rect, pixmap, QtCore.QRectF(pixmap.rect()))
 
-        # Mode-specific overlays
-        if params["mode"] == "live":
-            # Crosshair overlay
-            if params["show_crosshair"]:
-                self._draw_crosshair(painter, target_rect)
-        else:
-            # Grid overlay (composite mode)
-            if params["show_grid"] and params["grid_info"]:
-                self._draw_grid(
-                    painter, target_rect, params["grid_info"], params["current_tile"]
-                )
+        # Crosshair overlay
+        if params["show_crosshair"]:
+            self._draw_crosshair(painter, target_rect)
+
+        # Position text overlay
+        if params["position_text"]:
+            self._draw_position_text(painter, params["position_text"])
 
         painter.end()
 
@@ -430,60 +294,26 @@ class _CanvasArea(QtWidgets.QWidget):
         painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
         painter.drawEllipse(QtCore.QPointF(cx, cy), 15, 15)
 
-    def _draw_grid(
-        self,
-        painter: QtGui.QPainter,
-        target_rect: QtCore.QRectF,
-        grid_info: dict,
-        current_tile: Optional[tuple[int, int]],
-    ):
-        """Draw tile grid overlay on the preview."""
-        rows = grid_info["rows"]
-        cols = grid_info["cols"]
+    def _draw_position_text(self, painter: QtGui.QPainter, text: str):
+        """Draw position information text at the top of the widget."""
+        font = QtGui.QFont()
+        font.setPointSize(12)
+        font.setBold(True)
+        painter.setFont(font)
 
-        if rows < 1 or cols < 1:
-            return
+        # Background rect for readability
+        metrics = QtGui.QFontMetrics(font)
+        text_rect = metrics.boundingRect(text)
+        bg_rect = QtCore.QRectF(10, 10, text_rect.width() + 20, text_rect.height() + 10)
+        painter.fillRect(bg_rect, QtGui.QColor(0, 0, 0, 160))
 
-        cell_w = target_rect.width() / cols
-        cell_h = target_rect.height() / rows
-
-        # Grid lines
-        pen = QtGui.QPen(QtGui.QColor(100, 200, 255, 80))
-        pen.setWidth(1)
-        pen.setStyle(QtCore.Qt.PenStyle.DashLine)
-        painter.setPen(pen)
-
-        # Vertical lines
-        for c in range(1, cols):
-            x = target_rect.x() + c * cell_w
-            painter.drawLine(
-                QtCore.QPointF(x, target_rect.top()),
-                QtCore.QPointF(x, target_rect.bottom()),
-            )
-
-        # Horizontal lines
-        for r in range(1, rows):
-            y = target_rect.y() + r * cell_h
-            painter.drawLine(
-                QtCore.QPointF(target_rect.left(), y),
-                QtCore.QPointF(target_rect.right(), y),
-            )
-
-        # Highlight current tile
-        if current_tile is not None:
-            r, c = current_tile
-            if 0 <= r < rows and 0 <= c < cols:
-                highlight_rect = QtCore.QRectF(
-                    target_rect.x() + c * cell_w,
-                    target_rect.y() + r * cell_h,
-                    cell_w,
-                    cell_h,
-                )
-                pen = QtGui.QPen(QtGui.QColor(255, 200, 0, 200))
-                pen.setWidth(2)
-                painter.setPen(pen)
-                painter.setBrush(QtGui.QColor(255, 200, 0, 30))
-                painter.drawRect(highlight_rect)
+        # Text
+        painter.setPen(QtGui.QColor(255, 255, 0, 230))
+        painter.drawText(
+            QtCore.QRectF(20, 12, text_rect.width() + 10, text_rect.height() + 10),
+            QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter,
+            text,
+        )
 
     def wheelEvent(self, event):
         self._preview.handle_wheel(event)
