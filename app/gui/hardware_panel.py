@@ -12,6 +12,9 @@ from ..i18n import tr
 
 logger = logging.getLogger(__name__)
 
+_COLOR_OK = _COLOR_OK
+_COLOR_ERR = _COLOR_ERR
+
 
 class HardwarePanel(QtCore.QObject):
     """Logic-only controller for shared hardware connections.
@@ -93,9 +96,9 @@ class HardwarePanel(QtCore.QObject):
         if self._session.xy_table is not None:
             xy = self._session.xy_table
             text = tr("hw.connected_z") if xy.has_z else tr("hw.connected")
-            self.xy_status_changed.emit(text, "#44cc44")
+            self.xy_status_changed.emit(text, _COLOR_OK)
         else:
-            self.xy_status_changed.emit(tr("hw.disconnected"), "#cc4444")
+            self.xy_status_changed.emit(tr("hw.disconnected"), _COLOR_ERR)
 
     def _update_position(self):
         if self._session.xy_table is None:
@@ -147,9 +150,14 @@ class HardwarePanel(QtCore.QObject):
         cam = self._session.camera
         return cam is not None and cam.is_open
 
+    def refresh_status(self):
+        """Re-emit current XY and camera status signals (e.g. after language change)."""
+        self._emit_xy_status()
+        self._emit_cam_status()
+
     def _emit_cam_status(self):
         cam = self._session.camera
         if cam is not None and cam.is_open:
-            self.cam_status_changed.emit(f"● {cam.camera_name}", "#44cc44")
+            self.cam_status_changed.emit(f"● {cam.camera_name}", _COLOR_OK)
         else:
-            self.cam_status_changed.emit(tr("hw.disconnected"), "#cc4444")
+            self.cam_status_changed.emit(tr("hw.disconnected"), _COLOR_ERR)

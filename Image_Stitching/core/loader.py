@@ -72,14 +72,14 @@ def load_tiles(
 
 def _collect_candidates(input_dir: Path | None, input_paths: list[Path] | None) -> list[Path]:
     if input_paths:
-        files = [p for p in input_paths if p.exists() and p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS]
+        files = [p for p in input_paths if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS]
         if not files:
             raise LoaderError("未选择有效图像文件。")
         return sorted(files)
 
     if input_dir is None:
         raise LoaderError("请先选择输入目录或图像文件。")
-    if not input_dir.exists() or not input_dir.is_dir():
+    if not input_dir.is_dir():
         raise LoaderError(f"输入目录不存在: {input_dir}")
     return sorted(
         p

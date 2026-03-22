@@ -91,30 +91,30 @@ class AppMainWindow(QtWidgets.QMainWindow):
 
     def _setup_menu(self):
         # Hardware menu
-        hw_menu = self.menuBar().addMenu(tr("menu.hardware"))
+        self._hw_menu = self.menuBar().addMenu(tr("menu.hardware"))
 
-        xy_menu = hw_menu.addMenu(tr("hw.xy"))
-        self._act_xy_connect = xy_menu.addAction(tr("hw.connect"))
+        self._xy_menu = self._hw_menu.addMenu(tr("hw.xy"))
+        self._act_xy_connect = self._xy_menu.addAction(tr("hw.connect"))
         self._act_xy_connect.triggered.connect(
             lambda: self._hardware.connect_xy(self)
         )
-        self._act_xy_disconnect = xy_menu.addAction(tr("hw.disconnect"))
+        self._act_xy_disconnect = self._xy_menu.addAction(tr("hw.disconnect"))
         self._act_xy_disconnect.setEnabled(False)
         self._act_xy_disconnect.triggered.connect(self._hardware.disconnect_xy)
 
-        cam_menu = hw_menu.addMenu(tr("hw.camera"))
-        self._act_cam_connect = cam_menu.addAction(tr("hw.connect"))
+        self._cam_menu = self._hw_menu.addMenu(tr("hw.camera"))
+        self._act_cam_connect = self._cam_menu.addAction(tr("hw.connect"))
         self._act_cam_connect.triggered.connect(
             lambda: self._hardware.connect_camera(self)
         )
-        self._act_cam_disconnect = cam_menu.addAction(tr("hw.disconnect"))
+        self._act_cam_disconnect = self._cam_menu.addAction(tr("hw.disconnect"))
         self._act_cam_disconnect.setEnabled(False)
         self._act_cam_disconnect.triggered.connect(self._hardware.disconnect_camera)
 
         # Language menu
-        lang_menu = self.menuBar().addMenu(tr("menu.language"))
+        self._lang_menu = self.menuBar().addMenu(tr("menu.language"))
         for code, name in LanguageManager.LANGUAGES.items():
-            action = lang_menu.addAction(name)
+            action = self._lang_menu.addAction(name)
             action.triggered.connect(lambda _, c=code: language_manager().set_language(c))
 
     def _connect_signals(self):
@@ -157,40 +157,15 @@ class AppMainWindow(QtWidgets.QMainWindow):
     @QtCore.Slot()
     def _retranslate_ui(self):
         self.setWindowTitle(tr("app.title"))
-        # Rebuild menu bar titles
-        menu_bar = self.menuBar()
-        actions = menu_bar.actions()
-        if len(actions) >= 1:
-            actions[0].setText(tr("menu.hardware"))
-            # Update submenu titles
-            hw_menu = actions[0].menu()
-            if hw_menu:
-                sub_actions = hw_menu.actions()
-                if len(sub_actions) >= 1 and sub_actions[0].menu():
-                    sub_actions[0].setText(tr("hw.xy"))
-                if len(sub_actions) >= 2 and sub_actions[1].menu():
-                    sub_actions[1].setText(tr("hw.camera"))
-                # Update connect/disconnect action text
-                self._act_xy_connect.setText(tr("hw.connect"))
-                self._act_xy_disconnect.setText(tr("hw.disconnect"))
-                self._act_cam_connect.setText(tr("hw.connect"))
-                self._act_cam_disconnect.setText(tr("hw.disconnect"))
-        if len(actions) >= 2:
-            actions[1].setText(tr("menu.language"))
-        # Refresh status bar labels
-        self._on_xy_status(
-            *((tr("hw.connected_z") if (self._session.xy_table and self._session.xy_table.has_z)
-               else tr("hw.connected"), "#44cc44")
-              if self._hardware.is_xy_connected()
-              else (tr("hw.disconnected"), "#cc4444"))
-        )
-        self._on_cam_status(
-            *(
-                (f"● {self._session.camera.camera_name}", "#44cc44")
-                if self._hardware.is_camera_connected()
-                else (tr("hw.disconnected"), "#cc4444")
-            )
-        )
+        self._hw_menu.setTitle(tr("menu.hardware"))
+        self._xy_menu.setTitle(tr("hw.xy"))
+        self._cam_menu.setTitle(tr("hw.camera"))
+        self._lang_menu.setTitle(tr("menu.language"))
+        self._act_xy_connect.setText(tr("hw.connect"))
+        self._act_xy_disconnect.setText(tr("hw.disconnect"))
+        self._act_cam_connect.setText(tr("hw.connect"))
+        self._act_cam_disconnect.setText(tr("hw.disconnect"))
+        self._hardware.refresh_status()
 
     # ------------------------------------------------------------------ #
     #  Step navigation
@@ -236,17 +211,6 @@ class AppMainWindow(QtWidgets.QMainWindow):
     def closeEvent(self, event: QtGui.QCloseEvent):
         self._scan_stage.stop_all()
         self._navigate_stage.stop_all()
-
-        if self._session.camera is not None and self._session.camera.is_open:
-            try:
-                self._session.camera.close()
-            except Exception as e:
-                logger.warning(f"Error closing camera on exit: {e}")
-
-        if self._session.xy_table is not None:
-            try:
-                self._session.xy_table.close()
-            except Exception as e:
-                logger.warning(f"Error closing XY table on exit: {e}")
-
+        self._hardware.disconnect_camera()
+        self._hardware.disconnect_xy()
         event.accept()

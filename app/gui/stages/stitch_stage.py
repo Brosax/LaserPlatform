@@ -123,12 +123,6 @@ class ZoomableImageView(QtWidgets.QGraphicsView):
                 self._placeholder,
             )
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        # Keep fit while image is first displayed (before user zooms)
-        if not self._pix_item.pixmap().isNull():
-            # Only auto-fit if user hasn't zoomed yet (scale close to fit scale)
-            pass  # user controls zoom after first fit
 
 
 # ------------------------------------------------------------------ #
@@ -150,7 +144,7 @@ class StitchWorker(QtCore.QThread):
         try:
             result = stitch(self._config, progress_callback=self._on_progress)
             self.finished_ok.emit(result)
-        except (StitchError, Exception) as e:
+        except Exception as e:
             self.error_occurred.emit(str(e))
 
     def _on_progress(self, percent: int, message: str):
@@ -479,27 +473,16 @@ class StitchStage(QtWidgets.QWidget):
         enable_align = self._align_check.isChecked()
         align_range = self._align_range_spin.value() if enable_align else 20
 
-        if self._input_files is not None:
-            config = StitchConfig(
-                input_dir=None,
-                input_paths=self._input_files,
-                overlap_x=overlap_x,
-                overlap_y=overlap_y,
-                resolution_mode=resolution_mode,
-                enable_exposure=enable_exposure,
-                enable_align=enable_align,
-                max_align_shift=align_range,
-            )
-        else:
-            config = StitchConfig(
-                input_dir=self._input_dir,
-                overlap_x=overlap_x,
-                overlap_y=overlap_y,
-                resolution_mode=resolution_mode,
-                enable_exposure=enable_exposure,
-                enable_align=enable_align,
-                max_align_shift=align_range,
-            )
+        config = StitchConfig(
+            input_dir=None if self._input_files is not None else self._input_dir,
+            input_paths=self._input_files,
+            overlap_x=overlap_x,
+            overlap_y=overlap_y,
+            resolution_mode=resolution_mode,
+            enable_exposure=enable_exposure,
+            enable_align=enable_align,
+            max_align_shift=align_range,
+        )
 
         self._worker = StitchWorker(config, parent=self)
         self._worker.progress.connect(self._on_progress)

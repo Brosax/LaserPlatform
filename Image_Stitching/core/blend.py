@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import functools
+
 import numpy as np
 
 
+@functools.lru_cache(maxsize=16)
 def make_weight_map(h: int, w: int) -> np.ndarray:
     x = np.linspace(0.0, 1.0, w, dtype=np.float32)
     y = np.linspace(0.0, 1.0, h, dtype=np.float32)

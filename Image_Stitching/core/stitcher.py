@@ -88,13 +88,14 @@ def stitch(
     total_tiles = len(layout.placements)
     for index, placement in enumerate(layout.placements, start=1):
         key = (placement.row, placement.col)
-        image = images[key].copy()
+        image = images[key]
         x, y = placement_map[key]
+
+        left_key = (placement.row, placement.col - 1)
+        up_key = (placement.row - 1, placement.col)
 
         if config.enable_align:
             shifts: list[tuple[int, int]] = []
-            left_key = (placement.row, placement.col - 1)
-            up_key = (placement.row - 1, placement.col)
 
             if left_key in stitched_row_col:
                 left_img = stitched_row_col[left_key]
@@ -111,15 +112,11 @@ def stitch(
                 shifts.append((dx, dy))
 
             if shifts:
-                avg_dx = int(round(float(np.mean([s[0] for s in shifts]))))
-                avg_dy = int(round(float(np.mean([s[1] for s in shifts]))))
-                x += avg_dx
-                y += avg_dy
+                x += int(round(sum(s[0] for s in shifts) / len(shifts)))
+                y += int(round(sum(s[1] for s in shifts) / len(shifts)))
 
         if config.enable_exposure:
             refs = []
-            left_key = (placement.row, placement.col - 1)
-            up_key = (placement.row - 1, placement.col)
 
             if left_key in stitched_row_col:
                 ref = stitched_row_col[left_key][:, -overlap_px_x:]
