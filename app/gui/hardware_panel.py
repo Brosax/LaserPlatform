@@ -12,8 +12,8 @@ from ..i18n import tr
 
 logger = logging.getLogger(__name__)
 
-_COLOR_OK = _COLOR_OK
-_COLOR_ERR = _COLOR_ERR
+_COLOR_OK = "#44cc44"
+_COLOR_ERR = "#cc4444"
 
 
 class HardwarePanel(QtCore.QObject):
