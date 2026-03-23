@@ -120,6 +120,7 @@ class AppMainWindow(QtWidgets.QMainWindow):
     def _connect_signals(self):
         # Step indicator -> switch view
         self._step_indicator.step_clicked.connect(self._on_step_clicked)
+        self._stacked.currentChanged.connect(self._on_stage_switched)
 
         # Hardware controller -> update UI
         self._hardware.hardware_changed.connect(self._on_hardware_changed)
@@ -175,6 +176,16 @@ class AppMainWindow(QtWidgets.QMainWindow):
     def _on_step_clicked(self, index: int):
         self._stacked.setCurrentIndex(index)
 
+    @QtCore.Slot(int)
+    def _on_stage_switched(self, new_index: int):
+        """Stop live feed on all stages; start it only on the newly active one."""
+        self._scan_stage.on_stage_leave()
+        self._navigate_stage.on_stage_leave()
+        if new_index == 0:
+            self._scan_stage.on_stage_enter()
+        elif new_index == 2:
+            self._navigate_stage.on_stage_enter()
+
     # ------------------------------------------------------------------ #
     #  Hardware propagation to stages
     # ------------------------------------------------------------------ #
@@ -183,6 +194,8 @@ class AppMainWindow(QtWidgets.QMainWindow):
     def _on_hardware_changed(self):
         self._scan_stage.on_hardware_changed()
         self._navigate_stage.on_hardware_changed()
+        # Start feed on the currently visible stage if camera just connected
+        self._on_stage_switched(self._stacked.currentIndex())
 
     # ------------------------------------------------------------------ #
     #  Stage transitions

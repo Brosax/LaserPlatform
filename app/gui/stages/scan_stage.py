@@ -98,12 +98,20 @@ class ScanStage(QtWidgets.QWidget):
         xy = self._session.xy_table
         self._xy_control.set_xy_table(xy)
 
-        # Auto-start live feed if camera is connected
+        # Stop feed if camera disconnected; starting is handled by on_stage_enter
+        cam = self._session.camera
+        if cam is None or not cam.is_open:
+            self._stop_live_feed()
+
+    def on_stage_enter(self):
+        """Called when this stage becomes the active visible stage."""
         cam = self._session.camera
         if cam is not None and cam.is_open:
             self._start_live_feed()
-        else:
-            self._stop_live_feed()
+
+    def on_stage_leave(self):
+        """Called when this stage is hidden (switching to another stage)."""
+        self._stop_live_feed()
 
     # ------------------------------------------------------------------ #
     #  Config
