@@ -1,6 +1,7 @@
 """Hardware controller: XY table + camera connect/disconnect (no UI widget)."""
 
 import logging
+from typing import Optional
 
 from PySide6 import QtCore, QtWidgets
 
@@ -14,6 +15,26 @@ logger = logging.getLogger(__name__)
 
 _COLOR_OK = "#44cc44"
 _COLOR_ERR = "#cc4444"
+
+
+class _PositionWorker(QtCore.QThread):
+    """Reads XY(Z) position in a background thread to keep the UI responsive."""
+
+    result = QtCore.Signal(str)
+    error = QtCore.Signal()
+
+    def __init__(self, xy_table, parent=None):
+        super().__init__(parent)
+        self._xy = xy_table
+
+    def run(self):
+        try:
+            x, y = self._xy.update_position()
+            z = self._xy.update_position_z()
+            z_text = f"  Z: {z:.1f}" if z is not None else ""
+            self.result.emit(f"X: {x:.1f}  Y: {y:.1f}{z_text} µm")
+        except Exception:
+            self.error.emit()
 
 
 class HardwarePanel(QtCore.QObject):
@@ -42,6 +63,8 @@ class HardwarePanel(QtCore.QObject):
     def __init__(self, session: AppSession, parent=None):
         super().__init__(parent)
         self._session = session
+        self._pos_busy: bool = False
+        self._pos_worker: Optional[_PositionWorker] = None
 
         self._pos_timer = QtCore.QTimer(self)
         self._pos_timer.setInterval(500)
@@ -79,6 +102,7 @@ class HardwarePanel(QtCore.QObject):
         if self._session.xy_table is None:
             return
         self._pos_timer.stop()
+        self._pos_busy = False
         try:
             self._session.xy_table.close()
         except Exception as e:
@@ -101,15 +125,20 @@ class HardwarePanel(QtCore.QObject):
             self.xy_status_changed.emit(tr("hw.disconnected"), _COLOR_ERR)
 
     def _update_position(self):
-        if self._session.xy_table is None:
+        if self._session.xy_table is None or self._pos_busy:
             return
-        try:
-            x, y = self._session.xy_table.update_position()
-            z = self._session.xy_table.update_position_z()
-            z_text = f"  Z: {z:.1f}" if z is not None else ""
-            self.pos_updated.emit(f"X: {x:.1f}  Y: {y:.1f}{z_text} µm")
-        except Exception:
-            pass
+        self._pos_busy = True
+        self._pos_worker = _PositionWorker(self._session.xy_table, parent=self)
+        self._pos_worker.result.connect(self._on_pos_result)
+        self._pos_worker.error.connect(self._on_pos_error)
+        self._pos_worker.start()
+
+    def _on_pos_result(self, text: str):
+        self._pos_busy = False
+        self.pos_updated.emit(text)
+
+    def _on_pos_error(self):
+        self._pos_busy = False
 
     # ------------------------------------------------------------------ #
     #  Camera

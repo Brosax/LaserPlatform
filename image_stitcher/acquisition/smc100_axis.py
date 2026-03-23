@@ -14,6 +14,7 @@ Features
 """
 
 import logging
+import threading
 import time
 from typing import ClassVar, Optional
 
@@ -91,6 +92,7 @@ class SMC100Axis:
     # Class-level shared serial ports {port_name: serial.Serial}
     _shared_serials: ClassVar[dict[str, serial.Serial]] = {}
     _ref_counts: ClassVar[dict[str, int]] = {}
+    _locks: ClassVar[dict[str, threading.RLock]] = {}
 
     def __init__(self, port: str, address: int, timeout: float = 1.0):
         self._port = port
@@ -112,6 +114,7 @@ class SMC100Axis:
             )
             SMC100Axis._shared_serials[port] = ser
             SMC100Axis._ref_counts[port] = 0
+            SMC100Axis._locks[port] = threading.RLock()
             created_serial = True
             logger.info(f"Opened serial port {port} (57600, 8N1, XON/XOFF)")
 
@@ -145,6 +148,7 @@ class SMC100Axis:
                 finally:
                     del SMC100Axis._shared_serials[port]
                     del SMC100Axis._ref_counts[port]
+                    SMC100Axis._locks.pop(port, None)
                     logger.info(f"Closed serial port {port} after init failure")
             raise
 
@@ -276,6 +280,7 @@ class SMC100Axis:
                 self._serial.close()
                 del SMC100Axis._shared_serials[port]
                 del SMC100Axis._ref_counts[port]
+                SMC100Axis._locks.pop(port, None)
                 logger.info(f"Closed serial port {port}")
             else:
                 logger.debug(
@@ -287,8 +292,13 @@ class SMC100Axis:
     #  Internal helpers
     # ------------------------------------------------------------------ #
 
+    @property
+    def _lock(self) -> threading.RLock:
+        return SMC100Axis._locks[self._port]
+
     def _send(self, msg: NewportMessage) -> None:
-        self._serial.write(msg.pack())
+        with self._lock:
+            self._serial.write(msg.pack())
 
     def _read(self) -> NewportMessage:
         raw = self._serial.readline()
@@ -308,17 +318,19 @@ class SMC100Axis:
 
     def _query(self, msg: NewportMessage) -> NewportMessage:
         """Send a query and read the response, with retry on decode errors."""
-        try:
-            self._send(msg)
-            reply = self._read()
-            self._retry_count = 0
-            return reply
-        except UnicodeDecodeError:
-            self._retry_count += 1
-            if self._retry_count >= MAX_RETRY:
+        with self._lock:
+            try:
+                self._serial.write(msg.pack())
+                reply = self._read()
                 self._retry_count = 0
-                raise TimeoutError(f"SMC100 addr={self._address}: max retries exceeded")
-            return self._query(msg)
+                return reply
+            except UnicodeDecodeError:
+                self._retry_count += 1
+                if self._retry_count >= MAX_RETRY:
+                    self._retry_count = 0
+                    raise TimeoutError(f"SMC100 addr={self._address}: max retries exceeded")
+        # Retry outside the lock to allow other threads to proceed
+        return self._query(msg)
 
     def _verify_last_command(self) -> None:
         """Check that the last command did not produce an error."""
