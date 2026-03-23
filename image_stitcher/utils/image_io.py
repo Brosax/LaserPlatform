@@ -161,7 +161,13 @@ def _normalize_to_uint8(image: np.ndarray) -> np.ndarray:
         return image
 
     if image.dtype == np.uint16:
-        return (image >> 8).astype(np.uint8)
+        f32 = image.astype(np.float32)
+        lo = float(np.percentile(f32, 1.0))
+        hi = float(np.percentile(f32, 99.0))
+        if hi <= lo:
+            return np.zeros(image.shape[:2], dtype=np.uint8)
+        stretched = np.clip((f32 - lo) * (255.0 / (hi - lo)), 0.0, 255.0)
+        return stretched.astype(np.uint8)
 
     if image.dtype == np.float32 or image.dtype == np.float64:
         clipped = np.clip(image, 0.0, 1.0)
