@@ -18,6 +18,19 @@ from PySide6 import QtCore
 logger = logging.getLogger(__name__)
 
 
+def _import_vmbpy():
+    """Import vmbpy, raising a clear error if the VimbaX SDK is not installed."""
+    try:
+        import vmbpy
+        return vmbpy
+    except ImportError:
+        raise RuntimeError(
+            "Allied Vision VimbaX SDK is not installed.\n\n"
+            "Camera features require the VimbaX SDK to be installed system-wide.\n"
+            "Download from: https://www.alliedvision.com/en/products/software/"
+        )
+
+
 # ------------------------------------------------------------------ #
 #  Live-feed worker (QThread)
 # ------------------------------------------------------------------ #
@@ -64,7 +77,11 @@ class LiveFeedWorker(QtCore.QThread):
 
     def run(self):
         """Main loop: grab frames until ``stop()`` is called."""
-        import vmbpy
+        try:
+            vmbpy = _import_vmbpy()
+        except RuntimeError as e:
+            self.error_occurred.emit(str(e))
+            return
 
         self._running = True
         consecutive_timeouts = 0
@@ -136,7 +153,7 @@ class CameraAdapter:
         RuntimeError
             If no camera is found or the specified camera ID is invalid.
         """
-        import vmbpy
+        vmbpy = _import_vmbpy()
 
         self._vmb = vmbpy.VmbSystem.get_instance()
         self._vmb.__enter__()
@@ -205,7 +222,7 @@ class CameraAdapter:
             If True, use camera's native ExposureAuto=Continuous mode.
             If False, use manual exposure with the specified exposure_us.
         """
-        import vmbpy
+        vmbpy = _import_vmbpy()
 
         if not self._is_open:
             raise RuntimeError("Camera is not open. Call open() first.")
@@ -326,7 +343,7 @@ class CameraAdapter:
         list[dict]
             List of dicts with 'id' and 'name' for each camera.
         """
-        import vmbpy
+        vmbpy = _import_vmbpy()
 
         cameras = []
         with vmbpy.VmbSystem.get_instance() as vmb:

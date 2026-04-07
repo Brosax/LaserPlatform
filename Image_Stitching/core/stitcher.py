@@ -21,7 +21,7 @@ class StitchError(Exception):
 def _read_image(path: Path) -> np.ndarray:
     image = cv2.imread(str(path), cv2.IMREAD_COLOR)
     if image is None:
-        raise StitchError(f"无法读取图像: {path}")
+        raise StitchError(f"Unable to read image: {path}")
     return image
 
 
@@ -33,7 +33,7 @@ def stitch(
         if progress_callback is not None:
             progress_callback(percent, message)
 
-    update_progress(5, "扫描文件中")
+    update_progress(5, "Scanning files")
     try:
         tiles, rows_count, cols_count = load_tiles(
             input_dir=config.input_dir,
@@ -44,7 +44,7 @@ def stitch(
     except LoaderError as exc:
         raise StitchError(str(exc)) from exc
 
-    update_progress(10, "读取图像中")
+    update_progress(10, "Reading images")
     first = _read_image(tiles[0].path)
     base_h, base_w = first.shape[:2]
 
@@ -61,7 +61,7 @@ def stitch(
         source_sizes.append((src_w, src_h))
         if config.resolution_mode == "strict" and (src_h != base_h or src_w != base_w):
             raise StitchError(
-                f"图像尺寸不一致: {tile.path.name} 为 {src_w}x{src_h}, 期望 {base_w}x{base_h}"
+            f"Image size mismatch: {tile.path.name} is {src_w}x{src_h}, expected {base_w}x{base_h}"
             )
         images[(tile.row, tile.col)] = _normalize_size(
             image,
@@ -73,7 +73,7 @@ def stitch(
     tile_h, tile_w = base_h, base_w
     source_summary = _build_source_size_summary(source_sizes, tile_w, tile_h, config.resolution_mode)
 
-    update_progress(20, "计算布局中")
+    update_progress(20, "Computing layout")
     rows = sorted({t.row for t in tiles})
     cols = sorted({t.col for t in tiles})
     layout = compute_layout(rows, cols, tile_w, tile_h, config.overlap_x, config.overlap_y)
@@ -144,7 +144,7 @@ def stitch(
         stitched_row_col[key] = image
         placed_images.append((image, x, y))
         percent = 20 + int(60 * index / max(total_tiles, 1))
-        update_progress(percent, f"拼接中 {index}/{total_tiles}")
+        update_progress(percent, f"Stitching {index}/{total_tiles}")
 
     min_x = min(x for _, x, _ in placed_images)
     min_y = min(y for _, _, y in placed_images)
@@ -157,12 +157,12 @@ def stitch(
     max_x = max(x + img.shape[1] for img, x, _ in placed_images)
     max_y = max(y + img.shape[0] for img, _, y in placed_images)
 
-    update_progress(85, "融合图像中")
+    update_progress(85, "Blending image")
     canvas = blend_tiles(max_y, max_x, placed_images)
 
-    update_progress(95, "生成预览中")
+    update_progress(95, "Generating preview")
     preview = _make_preview(canvas, max_dim=1400)
-    update_progress(100, "完成")
+    update_progress(100, "Done")
     return StitchOutput(
         image=canvas,
         preview=preview,
@@ -204,7 +204,7 @@ def _normalize_size(image: np.ndarray, base_w: int, base_h: int, mode: str) -> n
         y = (base_h - new_h) // 2
         canvas[y : y + new_h, x : x + new_w] = resized
         return canvas
-    raise StitchError(f"不支持的分辨率模式: {mode}")
+    raise StitchError(f"Unsupported resolution mode: {mode}")
 
 
 def _build_source_size_summary(
@@ -215,10 +215,10 @@ def _build_source_size_summary(
 ) -> str:
     unique = sorted(set(source_sizes))
     if len(unique) == 1:
-        return f"原图: {target_w}x{target_h}"
+        return f"Original image: {target_w}x{target_h}"
     first = unique[0]
     last = unique[-1]
     return (
-        f"原图范围: {first[0]}x{first[1]} ~ {last[0]}x{last[1]}, "
-        f"处理模式: {mode}, 统一后: {target_w}x{target_h}"
+         f"Original size range: {first[0]}x{first[1]} ~ {last[0]}x{last[1]}, "
+         f"Mode: {mode}, normalized to: {target_w}x{target_h}"
     )
